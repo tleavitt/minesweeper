@@ -1,7 +1,7 @@
 pub mod mine_map;
-pub mod game_board;
+pub mod count_grid;
 pub mod grid;
-pub mod solve_board;
+pub mod solve_grid;
 
 ///////////////////
 // x x x x x x x //
