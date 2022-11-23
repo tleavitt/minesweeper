@@ -1,6 +1,6 @@
 use crate::grid::*;
 use crate::mine_map::{get_neighbor_mine_count, MineMap};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashSet};
 
 // Board shown to the user, kept independently from the mine map itself.
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ const UNKNOWN_GAME_CELL: i32 = -1;
 
 pub fn init_count_grid(nrows: usize, ncols: usize) -> CountGrid {
     let mut count_grid: CountGrid = Vec::with_capacity(nrows);
-    for _ in 0..ncols {
+    for _ in 0..nrows {
         count_grid.push(vec![CountCell {value: UNKNOWN_GAME_CELL}; ncols]);
     }
     count_grid
@@ -170,4 +170,110 @@ mod tests {
         )
     }
 
+    #[test]
+    fn test_mark2() {
+        let mine_map: MineMap = vec![
+            vec![true,  false, false, false],
+            vec![true,  true,  false, false],
+            vec![false, false, false, false],
+        ];
+        let mut count_grid: CountGrid = init_count_grid(3, 4);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 1, 3, &mine_map);
+        println!("{}", to_string(&count_grid));
+
+        assert_eq!(
+           vec![
+                vec![-1, -1, 1, 0],
+                vec![-1, -1, 1, 0],
+                vec![-1, -1, 1, 0],
+            ],
+           flatten_cells(&count_grid)
+        )
+
+    }
+
+    #[test]
+    fn test_mark3() {
+        let mine_map: MineMap = vec![
+            vec![true,  false, false, false, true ],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, true ],
+        ];
+        let mut count_grid: CountGrid = init_count_grid(get_num_rows(&mine_map), get_num_cols(&mine_map));
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 0, 2, &mine_map);
+        println!("{}", to_string(&count_grid));
+
+        assert_eq!(
+            vec![
+                vec![-1,  1,  0,  1, -1],
+                vec![ 1,  1,  0,  1,  1],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  1,  1],
+                vec![ 0,  0,  0,  1, -1],
+            ],
+            flatten_cells(&count_grid)
+        )
+    }
+
+    #[test]
+    fn test_mark4() {
+        let mine_map: MineMap = vec![
+            vec![true,  false, false, false, true ],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, true ],
+        ];
+        let mut count_grid: CountGrid = init_count_grid(get_num_rows(&mine_map), get_num_cols(&mine_map));
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 5, 2, &mine_map);
+        println!("{}", to_string(&count_grid));
+
+        assert_eq!(
+            vec![
+                vec![-1,  1,  0,  1, -1],
+                vec![ 1,  1,  0,  1,  1],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  1,  1],
+                vec![ 0,  0,  0,  1, -1],
+            ],
+            flatten_cells(&count_grid)
+        )
+    }
+
+    #[test]
+    fn test_mark5() {
+        let mine_map: MineMap = vec![
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+        ];
+        let mut count_grid: CountGrid = init_count_grid(get_num_rows(&mine_map), get_num_cols(&mine_map));
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 4, 4, &mine_map);
+        println!("{}", to_string(&count_grid));
+
+        assert_eq!(
+            vec![
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+            ],
+            flatten_cells(&count_grid)
+        )
+    }
 }
