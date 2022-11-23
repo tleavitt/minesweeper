@@ -45,20 +45,20 @@ fn mark_iterative(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &Min
     // Use a hash-set to store the mark queue to avoid double-marking
     let mut to_mark: HashSet<(usize, usize)> = HashSet::with_capacity(8);
     let mut marked: Vec<(usize, usize)> = Vec::with_capacity(8);
-    to_mark.insert((usize, usize));
+    to_mark.insert((i, j));
     while !to_mark.is_empty() {
         // My hacky way to "pop" the first element off a hash set -
         // this is perhaps inefficient
         let cur = *to_mark.iter().next().unwrap();
         to_mark.remove(&cur);
-        let (i, j) = cur;
-        let mine_count = mark_cell(count_grid, i, j, mine_map);
+        let (cur_i, cur_j) = cur;
+        let mine_count = mark_cell(count_grid, cur_i, cur_j, mine_map);
         marked.push(cur);
         // TODO: there's perhaps potential for optimization here (running over the neighbors
         //  twice)?
         if mine_count == 0 {
             // None of the neighbors are mines, so enqueue all the unmarked neighbors for marking.
-            for cur_neigh in get_neighbors(mine_map, i, j) {
+            for cur_neigh in get_neighbors(mine_map, cur_i, cur_j) {
                 let (ni, nj) = cur_neigh;
                 if !get(count_grid, ni, nj).is_marked() {
                     to_mark.insert(cur_neigh); // The hash-set-ness will deduplicate for us.
@@ -132,6 +132,32 @@ mod tests {
         mark_cell(&mut count_grid, 2, 2, &mine_map);
         println!("{}", to_string(&count_grid));
         mark_cell(&mut count_grid, 1, 1, &mine_map);
+        println!("{}", to_string(&count_grid));
+
+        assert_eq!(
+            vec![
+                vec![-1, 3, -1],
+                vec![-1, 2, -1],
+                vec![-1, -1, 1],
+            ],
+            flatten_cells(&count_grid)
+        )
+    }
+
+    #[test]
+    fn test_mark1() {
+        let mine_map: MineMap = vec![
+            vec![true, false, false],
+            vec![true, true, false],
+            vec![false, false, false],
+        ];
+        let mut count_grid: CountGrid = init_count_grid(3, 3);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 0, 1, &mine_map);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 2, 2, &mine_map);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 1, 1, &mine_map);
         println!("{}", to_string(&count_grid));
 
         assert_eq!(
