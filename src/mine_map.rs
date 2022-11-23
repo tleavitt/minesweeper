@@ -1,8 +1,8 @@
 use rand::prelude::*;
-use crate::grid::{get_num_cols, get_num_rows};
+use crate::grid::{get, get_num_cols, get_num_rows, get_neighbors};
 
 /// Ground-truth representation of a game (i.e. where the mines are)
-type MineMap = Vec<Vec<bool>>;
+pub(crate) type MineMap = Vec<Vec<bool>>;
 
 
 ///
@@ -66,6 +66,17 @@ pub fn generate_new_mine_map(nrows: usize, ncols: usize, nmines: usize) -> MineM
         mine_map.push(cur_row);
     }
     mine_map
+}
+
+pub fn get_neighbor_mine_count(mine_map: &MineMap, i: usize, j: usize) -> usize {
+    let mut mine_count: usize = 0;
+    let neighbors = get_neighbors(mine_map, i, j);
+    for (ni, nj) in neighbors {
+        if *get(mine_map, ni, nj) {
+            mine_count += 1;
+        }
+    }
+    mine_count
 }
 
 pub fn to_string(mine_map: &MineMap) -> String {
@@ -140,4 +151,25 @@ mod tests {
         println!("{}", to_string(&mine_map));
         validate_mine_map(&mine_map, 4, 3, 12);
     }
+
+    #[test]
+    fn test_get_neighbor_mine_count() {
+        let mine_map: MineMap = vec![
+            vec![true, false, false],
+            vec![true, true, false],
+            vec![false, false, false],
+        ];
+        assert_eq!(2, get_neighbor_mine_count(&mine_map, 0, 0));
+        assert_eq!(3, get_neighbor_mine_count(&mine_map, 0, 1));
+        assert_eq!(1, get_neighbor_mine_count(&mine_map, 0, 2));
+
+        assert_eq!(2, get_neighbor_mine_count(&mine_map, 1, 0));
+        assert_eq!(2, get_neighbor_mine_count(&mine_map, 1, 1));
+        assert_eq!(1, get_neighbor_mine_count(&mine_map, 1, 2));
+
+        assert_eq!(2, get_neighbor_mine_count(&mine_map, 2, 0));
+        assert_eq!(2, get_neighbor_mine_count(&mine_map, 2, 1));
+        assert_eq!(1, get_neighbor_mine_count(&mine_map, 2, 2));
+    }
+
 }
