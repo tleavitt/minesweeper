@@ -1,5 +1,5 @@
 use rand::prelude::*;
-use crate::grid::{get, get_num_cols, get_num_rows, get_neighbors};
+use crate::grid::*;
 
 /// Ground-truth representation of a game (i.e. where the mines are)
 pub(crate) type MineMap = Vec<Vec<bool>>;
@@ -80,11 +80,7 @@ pub fn get_neighbor_mine_count(mine_map: &MineMap, i: usize, j: usize) -> usize 
 }
 
 pub fn to_string(mine_map: &MineMap) -> String {
-    let mut str = String::from(
-        format!("nrow: {}, ncols: {}\n",
-                get_num_rows(&mine_map),
-                get_num_cols(&mine_map)
-        ));
+    let mut str = get_row_col_str(mine_map);
     for row in mine_map {
         for cell in row {
             str.push_str(if *cell { "x " } else { "- " });

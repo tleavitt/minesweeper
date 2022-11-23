@@ -7,8 +7,8 @@ pub fn get<T>(grid: &Vec<Vec<T>>, i: usize, j: usize) -> &T {
     &grid[i][j]
 }
 
-pub fn set<T>(grid: &mut Vec<Vec<T>>, i: usize, j: usize, value: T) {
-    &grid[i][j] = value;
+pub fn get_mut<T>(grid: &mut Vec<Vec<T>>, i: usize, j: usize) -> &mut T {
+    &mut grid[i][j]
 }
 
 pub fn get_num_rows<T>(grid: &Vec<Vec<T>>) -> usize {
@@ -17,6 +17,13 @@ pub fn get_num_rows<T>(grid: &Vec<Vec<T>>) -> usize {
 
 pub fn get_num_cols<T>(grid: &Vec<Vec<T>>) -> usize {
     grid[0].len()
+}
+
+pub fn get_row_col_str<T>(grid: &Vec<Vec<T>>) -> String {
+    format!("nrow: {}, ncols: {}\n",
+            get_num_rows(grid),
+            get_num_cols(grid)
+    )
 }
 
 /// Returns a list of all valid neighbors of the given cell
