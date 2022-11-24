@@ -2,7 +2,7 @@ use rand::prelude::*;
 use crate::grid::*;
 
 /// Ground-truth representation of a game (i.e. where the mines are)
-pub(crate) type MineMap = Vec<Vec<bool>>;
+pub type MineMap = Vec<Vec<bool>>;
 
 
 ///

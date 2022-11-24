@@ -27,8 +27,17 @@ pub fn get_row_col_str<T>(grid: &Vec<Vec<T>>) -> String {
 }
 
 /// Returns a list of all valid neighbors of the given cell
+/// TODO: is allocating and returning a list for this all the time inefficient?
 pub fn get_neighbors<T>(grid: &Vec<Vec<T>>, i: usize, j: usize) -> Vec<(usize, usize)> {
     let mut neighbors: Vec<(usize, usize)> = Vec::with_capacity(8);
+    let mut add_neighbor = |_: &T, ni: usize, nj: usize| {
+        neighbors.push((ni, nj));
+    };
+    for_each_neighbor(grid, i, j, &mut add_neighbor);
+    neighbors
+}
+
+pub fn for_each_neighbor<T>(grid: &Vec<Vec<T>>, i: usize, j: usize, f: &mut dyn for<'r> FnMut(&'r T, usize, usize) -> ()) {
     let nrows = get_num_rows(grid);
     let ncols = get_num_cols(grid);
     // Note: all values are inclusive
@@ -40,10 +49,8 @@ pub fn get_neighbors<T>(grid: &Vec<Vec<T>>, i: usize, j: usize) -> Vec<(usize, u
     for ni in min_i..max_i+1 {
         for nj in min_j..max_j+1 {
             if !(ni == i && nj == j) {
-                neighbors.push((ni, nj));
+                f(get(grid, ni, nj), ni, nj)
             }
         }
     }
-
-    neighbors
 }

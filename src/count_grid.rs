@@ -5,7 +5,7 @@ use std::collections::{HashSet};
 // Board shown to the user, kept independently from the mine map itself.
 #[derive(Debug, Clone)]
 pub struct CountCell {
-    value: i32
+    pub value: i32
 }
 impl CountCell {
     fn is_marked(&self) -> bool {
@@ -36,7 +36,11 @@ fn mark_cell(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap)
 
 /// Mark a cell and iteratively mark all adjacent empty cells.
 /// Returns a list of all cells marked
-fn mark(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap) -> Vec<(usize, usize)> {
+pub fn mark(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap) -> Vec<(usize, usize)> {
+    // If we try to mark a mine, panic. This should be caught earlier.
+    if *get(mine_map, i, j) {
+        panic!("marked cell {i},{j} is a mine");
+    }
     // mark_iterative(count_grid, i, j, mine_map)
     mark_recursive(count_grid, i, j, mine_map)
 }
