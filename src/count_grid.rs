@@ -5,21 +5,21 @@ use std::collections::{HashSet};
 // Board shown to the user, kept independently from the mine map itself.
 #[derive(Debug, Clone)]
 pub struct CountCell {
-    pub value: i32
+    pub neighbor_mine_count: i32
 }
 impl CountCell {
-    fn is_marked(&self) -> bool {
-        return self.value != UNKNOWN_GAME_CELL
+    pub(crate) fn is_marked(&self) -> bool {
+        return self.neighbor_mine_count != UNKNOWN_CELL_COUNT
     }
 }
 pub type CountGrid = Vec<Vec<CountCell>>;
 
-const UNKNOWN_GAME_CELL: i32 = -1;
+const UNKNOWN_CELL_COUNT: i32 = -1;
 
 pub fn init_count_grid(nrows: usize, ncols: usize) -> CountGrid {
     let mut count_grid: CountGrid = Vec::with_capacity(nrows);
     for _ in 0..nrows {
-        count_grid.push(vec![CountCell {value: UNKNOWN_GAME_CELL}; ncols]);
+        count_grid.push(vec![CountCell { neighbor_mine_count: UNKNOWN_CELL_COUNT }; ncols]);
     }
     count_grid
 }
@@ -30,8 +30,8 @@ fn mark_cell(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap)
     if cur_cell.is_marked() {
         panic!("Cell {},{} has already been marked", i, j);
     }
-    cur_cell.value = get_neighbor_mine_count(mine_map, i, j) as i32;
-    cur_cell.value
+    cur_cell.neighbor_mine_count = get_neighbor_mine_count(mine_map, i, j) as i32;
+    cur_cell.neighbor_mine_count
 }
 
 /// Mark a cell and iteratively mark all adjacent empty cells.
@@ -97,7 +97,7 @@ fn mark_recursive_impl(count_grid: &mut CountGrid, i: usize, j: usize, mine_map:
 pub fn flatten_cells(count_grid: &CountGrid) -> Vec<Vec<i32>> {
     count_grid.iter().map(
         |row| row.iter().map(
-            |cell| cell.value
+            |cell| cell.neighbor_mine_count
         ).collect()
     ).collect()
 }
@@ -106,10 +106,10 @@ pub fn to_string(count_grid: &CountGrid) -> String {
     let mut str = get_row_col_str(count_grid);
     for row in count_grid {
         for cell in row {
-            if cell.value == UNKNOWN_GAME_CELL {
+            if cell.neighbor_mine_count == UNKNOWN_CELL_COUNT {
                 str.push_str("- ");
             } else {
-               str.push_str(&*format!("{} ", cell.value));
+               str.push_str(&*format!("{} ", cell.neighbor_mine_count));
             };
         }
         str.push('\n');
