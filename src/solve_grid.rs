@@ -7,7 +7,7 @@ use crate::grid::*;
 
 #[derive(Debug, Clone)]
 pub struct SolveCell {
-    mine_likelihood: f64,  // The current estimated likelihood that this cell is a mine
+    pub mine_likelihood: f64,  // The current estimated likelihood that this cell is a mine
     unknown_neighbor_mine_likelihood: f64,  // The likelihood that an unknown neighbor of this cell is a mine,
                                     // based of of this cell's mine count and known neighbors.
     // leader: (i32, i32) // The cell who's determining the likelihood of this one - must be a neighbor - necessary?
@@ -157,7 +157,7 @@ pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize
         let (i_, j_) = cur;
         let i = *i_; let j = *j_;
         for unk_neighbor in get_unknown_neighbors(&solve_state.solve_grid, i, j) {
-            println!("unk neighbor: {:?}", unk_neighbor);
+            // println!("unk neighbor: {:?}", unk_neighbor);
             solve_state.frontier.insert(unk_neighbor);
         }
     }

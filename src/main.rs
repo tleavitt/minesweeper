@@ -12,17 +12,17 @@ fn main() {
 }
 
 fn minesweeper_repl() {
-    let nrows = 5;
-    let ncols = 5;
-    let nmines = 5;
-    // let mine_map = generate_new_mine_map(nrows, ncols, nmines);
-    let mine_map = vec![
-        vec![false, false, true , false, false],
-        vec![false, false, false, false, false],
-        vec![true , false, false, false, false],
-        vec![true , true , true , false, false],
-        vec![false, false, false, false, false],
-    ];
+    let nrows = 26;
+    let ncols = 19;
+    let nmines = 99;
+    let mine_map = generate_new_mine_map(nrows, ncols, nmines);
+    // let mine_map = vec![
+    //     vec![false, false, true , false, false],
+    //     vec![false, false, false, false, false],
+    //     vec![true , false, false, false, false],
+    //     vec![true , true , true , false, false],
+    //     vec![false, false, false, false, false],
+    // ];
     let mut solve_state = SolveState::init(nrows, ncols, nmines);
     println!("Let's play minesweeper");
     print(&solve_state);
@@ -62,7 +62,8 @@ fn minesweeper_repl() {
                 println!("No more moves available - you win!");
                 break
             },
-            Some(m) => println!("Compute recommmends: {:?}", m),
+            Some(m) => println!("Computer recommends: {:?}, mine probability: {:.2}", m,
+                                grid::get(&solve_state.solve_grid, m.0, m.1).mine_likelihood)
         };
     }
 }
@@ -82,7 +83,7 @@ fn parse_mark(mark_str: &str) -> Option<(usize, usize)> {
 
 fn print(solve_state: &SolveState) {
     println!("grid: {}", count_grid::to_string(&solve_state.count_grid));
-    println!("mine likelihoods: {}", solve_grid::to_string(&solve_state.solve_grid));
+    // println!("mine likelihoods: {}", solve_grid::to_string(&solve_state.solve_grid));
     println!("frontier: {:?}", solve_state.frontier);
 }
 
