@@ -102,6 +102,14 @@ pub fn flatten_cells(count_grid: &CountGrid) -> Vec<Vec<i32>> {
     ).collect()
 }
 
+pub fn from_vec(count_grid_vec: Vec<Vec<i32>>) -> CountGrid {
+    count_grid_vec.iter().map(
+        |row| row.iter().map(
+            |count| CountCell {neighbor_mine_count: *count}
+        ).collect()
+    ).collect()
+}
+
 pub fn to_string(count_grid: &CountGrid) -> String {
     let mut str = get_row_col_str(count_grid);
     for row in count_grid {

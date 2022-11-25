@@ -31,11 +31,11 @@ pub fn flatten_cells(count_grid: &SolveGrid) -> Vec<Vec<f64>> {
 // Container for data structures the solver uses.
 #[derive(Debug)]
 pub struct SolveState {
-    solve_grid: SolveGrid,
-    count_grid: CountGrid,
-    nmines: usize,
-    mines_found: usize,
-    frontier: HashSet<(usize, usize)> // unknown cells bordering boundary cells.
+    pub solve_grid: SolveGrid,
+    pub count_grid: CountGrid,
+    pub nmines: usize,
+    pub mines_found: usize,
+    pub frontier: HashSet<(usize, usize)> // unknown cells bordering boundary cells.
 }
 
 ///
@@ -172,17 +172,43 @@ fn update_metadata_after_mark(solve_state: &mut SolveState) {
 ///
 /// Given a fully expanded solve state, choose the next cell to mark.
 ///
-fn choose_next_mark(solve_state: &SolveState) -> Option<(usize, usize)> {
+pub fn choose_next_mark(solve_state: &SolveState) -> Option<(usize, usize)> {
     // Simply choose the frontier cell with lowest likelihood of being a mine
     // TODO: implement lookahead by simulating mines.
-    solve_state.frontier.iter()
+    let best_frontier_cell = solve_state.frontier.iter()
         .min_by(|(i1, j1), (i2, j2)| {
             get(&solve_state.solve_grid, *i1 ,*j1).mine_likelihood
                 .partial_cmp(
                     &get(&solve_state.solve_grid, *i2, *j2).mine_likelihood
                 ).unwrap()
         })
-        .map(|b| *b)
+        .map(|b| *b)?;
+    // Heuristic: if the best frontier cell is worse than a random unvisited cell, try another
+    // unvisited cell instead.
+    let nrows = get_num_rows(&solve_state.count_grid);
+    let ncols = get_num_cols(&solve_state.count_grid);
+    let baseline_likelihood = (solve_state.nmines - solve_state.mines_found) as f64 /
+        (nrows * ncols) as f64;
+    if get(&solve_state.solve_grid, best_frontier_cell.0, best_frontier_cell.1).mine_likelihood
+        > baseline_likelihood {
+        // Iterate over the whole board looking for the best unmarked cell.
+        let mut best_likelihood: f64 = 1.0;
+        let mut best_cell = (0,0);
+        for i in 0..nrows {
+            for j in 0..ncols {
+                if !get(&solve_state.count_grid, i, j).is_marked() {
+                    if get(&solve_state.solve_grid, i, j).mine_likelihood < best_likelihood {
+                        best_likelihood = get(&solve_state.solve_grid, i, j).mine_likelihood;
+                        best_cell = (i, j);
+                    }
+                }
+            }
+        }
+        // TODO: possible bug if we don't find a best cell?
+        Some(best_cell)
+    } else {
+        Some(best_frontier_cell)
+    }
 }
 
 /// Recursively update likelihoods for this cell and its neighbors
@@ -208,6 +234,13 @@ fn update_local_likelihoods_impl(solve_state: &mut SolveState, i: usize, j: usiz
         panic!("cannot update likelihoods for a cell with no neighboring mines: {i},{j}");
     }
     let neighbors = get_neighbors(&solve_state.solve_grid, i, j);
+
+    // Neighbors that are currently boundary cells.
+    // NOTE: it's important to record this now, since the neighbors might _not_ be boundary cells
+    // after we perform the updates for this node, and we want to recurse on all of them.
+    let boundary_neighbors: Vec<&(usize, usize)> = neighbors.iter().filter(|(ni, nj)|
+        solve_state.is_boundary_cell(*ni, *nj)
+    ).collect();
 
     let unknown_neighbors: Vec<&(usize, usize)> = neighbors.iter().filter(|(ni, nj)|
        get(&solve_state.solve_grid, *ni, *nj).is_unknown()
@@ -251,11 +284,8 @@ fn update_local_likelihoods_impl(solve_state: &mut SolveState, i: usize, j: usiz
     // Otherwise, recurse on our neighboring boundary cells, since we may have updated their
     // probabilities.
     // let boundary_neighbors: Vec<(usize, usize)> = neighbors.iter().filter(|(ni, nj)|
-    for (ni_, nj_) in &unknown_neighbors {
-        let ni = *ni_; let nj = *nj_;
-        if solve_state.is_boundary_cell(ni, nj) {
-            update_local_likelihoods_impl(solve_state, ni, nj, visited);
-        }
+    for (ni, nj) in &boundary_neighbors {
+        update_local_likelihoods_impl(solve_state, *ni, *nj, visited);
     }
 }
 
@@ -294,14 +324,47 @@ pub fn to_string(solve_grid: &SolveGrid) -> String {
     str
 }
 
+pub fn test_update_likelihoods3() {
+    let mine_map: MineMap = vec![
+        vec![true,  false, false, false, false],
+        vec![false, false, false, false, false],
+        vec![true,  true,  false, false, false],
+        vec![false, false, false, false, false],
+        vec![false, false, true,  true,  false],
+    ];
+    let mut solve_state = SolveState::init(
+        get_num_rows(&mine_map),
+        get_num_cols(&mine_map),
+        3
+    );
+
+    println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+    println!("solve_grid: {}", to_string(&solve_state.solve_grid));
+    println!("{:?}", &solve_state);
+
+    let mut make_move_and_print = |m: (usize, usize)| {
+        let marked_cells = count_grid::mark(&mut solve_state.count_grid, m.0, m.1, &mine_map);
+        update_after_mark(&mut solve_state, &marked_cells);
+        println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("solve_grid: {}", to_string(&solve_state.solve_grid));
+        println!("{:?}", &solve_state);
+    };
+
+    make_move_and_print((1, 1));
+    make_move_and_print((0, 3));
+    make_move_and_print((3, 0));
+    make_move_and_print((4, 0));
+}
+
+
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::mine_map::MineMap;
     use crate::solve_grid;
 
     #[test]
-    fn test_update_likelihoods1() {
+    pub fn test_update_likelihoods1() {
         let mine_map: MineMap = vec![
             vec![true, false, false, false, true],
             vec![false, false, false, false, false],
@@ -357,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_likelihoods2() {
+    pub fn test_update_likelihoods2() {
         let mine_map: MineMap = vec![
             vec![true,  true,  true],
             vec![false, false, false],
@@ -383,5 +446,10 @@ mod tests {
         println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
         println!("solve_grid: {}", solve_grid::to_string(&solve_state.solve_grid));
 
+    }
+
+    #[test]
+    pub fn test_update_likelihoods3() {
+        solve_grid::test_update_likelihoods3();
     }
 }
