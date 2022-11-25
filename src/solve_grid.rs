@@ -211,7 +211,7 @@ pub fn choose_next_mark(solve_state: &SolveState) -> Option<(usize, usize)> {
     }
 }
 
-/// Recursively update likelihoods for this cell and its neighbors
+/// Recursively update likelihoods for this cell's neighbors
 /// Returns a set of all updated cells.
 fn update_local_likelihoods(solve_state: &mut SolveState, i: usize, j: usize) -> HashSet<(usize, usize)> {
     let mut updated_cells = HashSet::with_capacity(8);
@@ -257,7 +257,7 @@ fn update_local_likelihoods_impl(solve_state: &mut SolveState, i: usize, j: usiz
     let mine_likelihood = n_remaining_mine_neighbors as f64 / n_unknown_neighbors as f64;
 
     // Update our unknown neighbors' likelihoods
-    let mut updated = false;
+    let mut updated_cells = Vec::with_capacity(n_unknown_neighbors);
     // for_each_neighbor(&solve_state.solve_grid, i, j, &mut |mut cell, ni, nj| {
     for (ni_, nj_) in &unknown_neighbors {
         let ni = *ni_; let nj = *nj_;
@@ -265,27 +265,19 @@ fn update_local_likelihoods_impl(solve_state: &mut SolveState, i: usize, j: usiz
         // Update this neighbor if the mine_likelihood based off of this cell is greater than the
         // cell's current mine likelihood, OR if the mine likelihood from this cell is zero.
         // TODO: might need to change this? why only go strictly greater?
-        if mine_likelihood > neighbor.mine_likelihood {
-            updated = true;
+        if mine_likelihood == 0.0 || mine_likelihood > neighbor.mine_likelihood {
+            updated_cells.push((ni, nj));
             neighbor.mine_likelihood = mine_likelihood;
             neighbor.leader = (i as i32, j as i32); // The leader now the current cell.
         }
     }
 
-    // If we didn't update anything, terminate the search, since our neighbors won't have been
-    // update either.
-    // If this was a recently marked cell that made an impact, than we _should_ have updated
-    // something. If it was a recently marked cell that didn't make an impact, then
-    // we should start updating again from somewhere else?
-    // Or not??? Idea here is to avoid exploring neighbors that are unimpacted
-    if !updated {
-        return;
-    }
-    // Otherwise, recurse on our neighboring boundary cells, since we may have updated their
-    // probabilities.
-    // let boundary_neighbors: Vec<(usize, usize)> = neighbors.iter().filter(|(ni, nj)|
-    for (ni, nj) in &boundary_neighbors {
-        update_local_likelihoods_impl(solve_state, *ni, *nj, visited);
+    // Each cell we updated can propagate impacts, so recurse on all of the boundary neighbors
+    // of all the cells we updated.
+    for (i, j) in &updated_cells {
+        for (ni, nj) in get_boundary_neighbors(solve_state, *i, *j) {
+            update_local_likelihoods_impl(solve_state, ni, nj, visited);
+        }
     }
 }
 
@@ -297,6 +289,16 @@ fn get_unknown_neighbors(solve_grid: &SolveGrid, i: usize, j: usize) -> Vec<(usi
         }
     });
     unknown_neighbors
+}
+
+fn get_boundary_neighbors(solve_state: &SolveState, i: usize, j: usize) -> Vec<(usize, usize)>{
+    let mut boundary_neighbors = Vec::with_capacity(8);
+    for_each_neighbor(&solve_state.solve_grid, i, j, &mut |cell, ni, nj| {
+        if solve_state.is_boundary_cell(ni, nj) {
+            boundary_neighbors.push((ni, nj))
+        }
+    });
+    boundary_neighbors
 }
 
 fn get_num_mine_and_unknown_neighbors(solve_grid: &SolveGrid, i: usize, j: usize) -> (usize, usize) {
@@ -344,8 +346,8 @@ pub fn test_update_likelihoods3() {
 
     let mut make_move_and_print = |m: (usize, usize)| {
         let marked_cells = count_grid::mark(&mut solve_state.count_grid, m.0, m.1, &mine_map);
-        update_after_mark(&mut solve_state, &marked_cells);
         println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+        update_after_mark(&mut solve_state, &marked_cells);
         println!("solve_grid: {}", to_string(&solve_state.solve_grid));
         println!("{:?}", &solve_state);
     };
