@@ -268,26 +268,30 @@ mod tests {
     #[test]
     fn test_mark5() {
         let mine_map: MineMap = vec![
+            vec![false, false, true , false, false],
             vec![false, false, false, false, false],
-            vec![false, false, false, false, false],
-            vec![false, false, false, false, false],
-            vec![false, false, false, false, false],
-            vec![false, false, false, false, false],
+            vec![true , false, false, false, false],
+            vec![true , true , true , false, false],
             vec![false, false, false, false, false],
         ];
         let mut count_grid: CountGrid = init_count_grid(get_num_rows(&mine_map), get_num_cols(&mine_map));
         println!("{}", to_string(&count_grid));
-        mark(&mut count_grid, 4, 4, &mine_map);
+        mark(&mut count_grid, 1, 1, &mine_map);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 3, 3, &mine_map);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 2, 3, &mine_map);
+        println!("{}", to_string(&count_grid));
+        mark(&mut count_grid, 1, 3, &mine_map);
         println!("{}", to_string(&count_grid));
 
         assert_eq!(
             vec![
-                vec![ 0,  0,  0,  0,  0],
-                vec![ 0,  0,  0,  0,  0],
-                vec![ 0,  0,  0,  0,  0],
-                vec![ 0,  0,  0,  0,  0],
-                vec![ 0,  0,  0,  0,  0],
-                vec![ 0,  0,  0,  0,  0],
+                vec![-1, -1, -1, -1, -1],
+                vec![-1,  2, -1,  1, -1],
+                vec![-1, -1, -1,  1, -1],
+                vec![-1, -1, -1,  1, -1],
+                vec![-1, -1, -1, -1, -1],
             ],
             flatten_cells(&count_grid)
         )

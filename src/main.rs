@@ -7,15 +7,22 @@ use std::num::ParseIntError;
 
 fn main() {
     // solve_grid::test_update_likelihoods3();
-    solve_grid::test_update_likelihoods1();
-    // minesweeper_repl();
+    // solve_grid::test_update_likelihoods1();
+    minesweeper_repl();
 }
 
 fn minesweeper_repl() {
     let nrows = 5;
     let ncols = 5;
     let nmines = 5;
-    let mine_map = generate_new_mine_map(nrows, ncols, nmines);
+    // let mine_map = generate_new_mine_map(nrows, ncols, nmines);
+    let mine_map = vec![
+        vec![false, false, true , false, false],
+        vec![false, false, false, false, false],
+        vec![true , false, false, false, false],
+        vec![true , true , true , false, false],
+        vec![false, false, false, false, false],
+    ];
     let mut solve_state = SolveState::init(nrows, ncols, nmines);
     println!("Let's play minesweeper");
     print(&solve_state);
