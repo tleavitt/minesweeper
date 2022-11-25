@@ -6,13 +6,18 @@ use crate::grid::*;
 
 #[derive(Debug, Clone)]
 pub struct SolveCell {
-    mine_likelihood: f64,  // The probability that this cell is a mine
-    leader: (i32, i32) // The cell who's determining the likelihood of this one - must be a neighbor
+    mine_likelihood: f64,  // The current estimated likelihood that this cell is a mine
+    mine_neighbor_likelihood: f64,  // The likelihood that an unknown neighbor of this cell is a mine,
+                                    // based of of this cell's mine count and known neighbors.
+    // leader: (i32, i32) // The cell who's determining the likelihood of this one - must be a neighbor - necessary?
 }
 
 impl SolveCell {
     pub fn is_unknown(&self) -> bool {
         self.mine_likelihood != 0.0 && self.mine_likelihood != 1.0
+    }
+    pub fn is_mine(&self) -> bool {
+        self.mine_neighbor_likelihood == 1.0
     }
 }
 
@@ -35,17 +40,21 @@ pub struct SolveState {
     pub count_grid: CountGrid,
     pub nmines: usize,
     pub mines_found: usize,
-    pub frontier: HashSet<(usize, usize)> // unknown cells bordering boundary cells.
+    pub boundary: HashSet<(usize, usize)>, // cells with a non-zero mine count
+    pub frontier: HashSet<(usize, usize)>, // unknown cells bordering boundary cells.
 }
 
 ///
 /// Terms:
 /// unknown cell: a cell with a non-zero and non-one mine probability
-/// settled cell: a cell that's either a known mine, or an marked cell where none of it's neighbors are unknown cells
-/// The goal is to convert all cells to settled cells.
-/// boundary cell: marked cell with a non-zero mine count that's not settled (i.e. we're not sure what all of it's mines are)
+/// known cell: a cell with a zero or one probability of being a mine
+/// marked cell: a cell that's been marked by the user, revealing its mine count.
+/// settled cell: a cell where none of it's neighbors are unknown.
+/// The goal is to convert the entire board to known cells.
+/// boundary cell: a marked cell with a non-zero mine count. Can be settled or unsettled.
 /// frontier cell: unknown cell that borders a boundary cell (i.e. a candidate for being a mine)
 ///
+/// We track the boundary cells and the frontier cells globally.
 impl SolveState {
     pub fn init(nrows: usize, ncols: usize, nmines: usize) -> SolveState {
         SolveState {
@@ -53,7 +62,8 @@ impl SolveState {
             count_grid: init_count_grid(nrows, ncols),
             nmines,
             mines_found: 0,
-            frontier: HashSet::with_capacity(16)
+            boundary: HashSet::with_capacity(16),
+            frontier: HashSet::with_capacity(16),
         }
     }
 
@@ -65,13 +75,32 @@ impl SolveState {
             n_unknown_neighbors > 0
         }
     }
+
+    // Return the probability that an unknown neighbor of this cell is a mine, given
+    // this cell's mine count and known neighbors.
+    pub fn get_mine_neighbor_likelihood(&self, i: usize, j: usize) -> f64 {
+        let count_cell = get(&self.count_grid, i, j);
+        // Only makes sense to compute this for marked cells.
+        if !count_cell.is_marked() {
+            return -1.0
+        }
+        let (n_known_mine_neighbors, n_unknown_neighbors) = get_num_mine_and_unknown_neighbors(&self.solve_grid, i, j);
+        if n_known_mine_neighbors == 0 {
+            return 0.0
+        }
+
+        // The likelihood that this cell's neighbor is a mine, based off of this cell's count:
+        // Number of remaining mines bordering this cell / number of unknown neighbors of this cell
+        let n_remaining_mine_neighbors = count_cell.neighbor_mine_count - n_known_mine_neighbors;
+        n_remaining_mine_neighbors as f64 / n_unknown_neighbors as f64
+    }
 }
 
 pub fn init_solve_grid(nrows: usize, ncols: usize, nmines: usize) -> SolveGrid {
     let mut solve_grid: SolveGrid = Vec::with_capacity(nrows);
     let prior: f64 = nmines as f64 / (nrows * ncols) as f64;
     for _ in 0..nrows {
-        solve_grid.push(vec![SolveCell {mine_likelihood: prior, leader: (-1, -1)}; ncols]);
+        solve_grid.push(vec![SolveCell {mine_likelihood: prior, mine_neighbor_likelihood: -1.0} ]);
     }
     solve_grid
 }
