@@ -10,6 +10,7 @@ pub struct SolveCell {
     mine_neighbor_likelihood: f64,  // The likelihood that an unknown neighbor of this cell is a mine,
                                     // based of of this cell's mine count and known neighbors.
     // leader: (i32, i32) // The cell who's determining the likelihood of this one - must be a neighbor - necessary?
+    // is_settled: bool // Whether all this cell's neighbors are known (i.e. known to be mines or known to not be mines)
 }
 
 impl SolveCell {
@@ -67,13 +68,11 @@ impl SolveState {
         }
     }
 
-    pub fn is_boundary_cell(&self, i: usize, j: usize) -> bool {
-        if get(&self.count_grid, i, j).neighbor_mine_count <= 0 {
-            false
-        } else {
-            let (_, n_unknown_neighbors) = get_num_mine_and_unknown_neighbors(&self.solve_grid, i, j);
-            n_unknown_neighbors > 0
-        }
+
+    // Returns whether the given cell is settled, i.e. has no unknown neighbors.
+    pub fn is_settled(&self, i: usize, j: usize) -> bool {
+        let (_, n_unknown_neighbors) = get_num_mine_and_unknown_neighbors(&self.solve_grid, i, j);
+        n_unknown_neighbors == 0
     }
 
     // Return the probability that an unknown neighbor of this cell is a mine, given
@@ -100,7 +99,7 @@ pub fn init_solve_grid(nrows: usize, ncols: usize, nmines: usize) -> SolveGrid {
     let mut solve_grid: SolveGrid = Vec::with_capacity(nrows);
     let prior: f64 = nmines as f64 / (nrows * ncols) as f64;
     for _ in 0..nrows {
-        solve_grid.push(vec![SolveCell {mine_likelihood: prior, mine_neighbor_likelihood: -1.0} ]);
+        solve_grid.push(vec![SolveCell {mine_likelihood: prior, mine_neighbor_likelihood: -1.0 } ]);
     }
     solve_grid
 }
@@ -109,16 +108,15 @@ pub fn init_solve_grid(nrows: usize, ncols: usize, nmines: usize) -> SolveGrid {
 /// Main entrypoint for updating solve state.
 ///
 pub fn update_after_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize)>) {
-    let new_boundary_cells = apply_mark(solve_state, marked_cells);
-    update_likelihoods_after_mark(solve_state, new_boundary_cells);
+    apply_mark(solve_state, marked_cells);
+    update_likelihoods_after_mark(solve_state);
     update_metadata_after_mark(solve_state);
 }
 
 ///
-/// Marks a cell, updating the count grid, the solve grid, and the frontier,
-/// and returning a list of new boundary cells revealed by the mark
+/// Marks a cell, updating the count grid, the solve grid, the frontier, and the boundary
 ///
-pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize)>) -> HashSet<(usize, usize)> {
+pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize)>) {
     let mut new_boundary_cells: HashSet<(usize, usize)> = HashSet::with_capacity(marked_cells.len());
 
     // First, set all marked cells to have zero likelihood and remove them from the frontier if present.
@@ -127,11 +125,11 @@ pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize
         // Marked cells are not mines, so set their likelihoods to zero.
         let mut cell = get_mut(&mut solve_state.solve_grid, *i_, *j_);
         cell.mine_likelihood = 0.0;
-        cell.leader = (-1, -1); // No leader for marked cells.
         // Remove the cell from the frontier if it was present.
         solve_state.frontier.remove(cur);
     }
 
+    let mut new_boundary_cells: Vec<(usize, usize)> = Vec::new();
     for cur in marked_cells.iter() {
         let (i_, j_) = cur;
         let i = *i_; let j = *j_;
@@ -142,17 +140,13 @@ pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize
         if !count_cell.is_marked() {
             panic!("Unmarked cell returned by count_grid::mark {:?}", count_cell);
         }
-        let count = count_cell.neighbor_mine_count;
-        if count > 0 {
-            let (_, n_unknown_neighbors) = get_num_mine_and_unknown_neighbors(&solve_state.solve_grid, i, j);
-            if n_unknown_neighbors > 0 {
-                new_boundary_cells.insert(*cur);
-            }
+        if count_cell.is_boundary_cell() {
+            new_boundary_cells.push(*cur);
         }
     }
-    // Update the frontier based on our new boundary cells
+    // Update the boundary and frontier based on our new boundary cells
     for cur in &new_boundary_cells {
-        println!("Boundary cell: {:?}", cur);
+        solve_state.boundary.insert(*cur);
         let (i_, j_) = cur;
         let i = *i_; let j = *j_;
         for unk_neighbor in get_unknown_neighbors(&solve_state.solve_grid, i, j) {
@@ -160,24 +154,16 @@ pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize
             solve_state.frontier.insert(unk_neighbor);
         }
     }
-    new_boundary_cells
 }
 
 ///
 /// Updates the solve_state probabilities after marking a cell.
 ///
 fn update_likelihoods_after_mark(solve_state: &mut SolveState, new_boundary_cells: HashSet<(usize, usize)>) {
-    let mut to_process: HashSet<(usize, usize)> = new_boundary_cells;
-    while !to_process.is_empty() {
-        let (max_count_i, max_count_j) = to_process.iter().max_by_key(
-            |(i, j)| get(&solve_state.count_grid, *i, *j).neighbor_mine_count).unwrap();
+    // Phase 1: update the mine_neighbor_likelihood for all boundary cells.
+    // TODO: instead of running on all cells, run only on cells that need updates.
+    //  Need to determine which cells these are.
 
-        let updated_cells = update_local_likelihoods(solve_state, *max_count_i, *max_count_j);
-
-        for cell in updated_cells {
-            to_process.remove(&cell);
-        }
-    }
 }
 
 ///

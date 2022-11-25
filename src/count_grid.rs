@@ -8,8 +8,12 @@ pub struct CountCell {
     pub neighbor_mine_count: i32
 }
 impl CountCell {
-    pub(crate) fn is_marked(&self) -> bool {
+    pub fn is_marked(&self) -> bool {
         return self.neighbor_mine_count != UNKNOWN_CELL_COUNT
+    }
+
+    pub fn is_boundary_cell(&self) -> bool {
+        return self.neighbor_mine_count > 0
     }
 }
 pub type CountGrid = Vec<Vec<CountCell>>;
