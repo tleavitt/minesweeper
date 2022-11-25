@@ -6,7 +6,8 @@ use std::io;
 use std::num::ParseIntError;
 
 fn main() {
-    solve_grid::test_update_likelihoods3();
+    // solve_grid::test_update_likelihoods3();
+    solve_grid::test_update_likelihoods1();
     // minesweeper_repl();
 }
 
