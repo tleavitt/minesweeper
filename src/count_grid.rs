@@ -173,14 +173,14 @@ mod tests {
         println!("{}", to_string(&count_grid));
         mark(&mut count_grid, 2, 2, &mine_map);
         println!("{}", to_string(&count_grid));
-        mark(&mut count_grid, 1, 1, &mine_map);
+        mark(&mut count_grid, 1, 2, &mine_map);
         println!("{}", to_string(&count_grid));
 
         assert_eq!(
             vec![
-                vec![-1, 3, -1],
-                vec![-1, 2, -1],
-                vec![-1, -1, 1],
+                vec![-1,  3, -1],
+                vec![-1, -1,  1],
+                vec![-1, -1,  1],
             ],
             flatten_cells(&count_grid)
         )
