@@ -1,13 +1,15 @@
 use minesweeper_solver::{count_grid, grid, solve_grid};
 use minesweeper_solver::mine_map::{generate_new_mine_map, to_string};
 use minesweeper_solver::solve_grid::SolveState;
+use minesweeper_solver::assume;
 
 use std::io;
 use std::num::ParseIntError;
 
 fn main() {
+    assume::test_sim1();
     // solve_grid::test_update_likelihoods3();
-    solve_grid::test_update_likelihoods1();
+    // solve_grid::test_update_likelihoods1();
     // minesweeper_repl();
 }
 
