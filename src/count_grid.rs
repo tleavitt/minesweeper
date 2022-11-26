@@ -48,34 +48,34 @@ pub fn mark(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap) 
     // mark_iterative(count_grid, i, j, mine_map)
     mark_recursive(count_grid, i, j, mine_map)
 }
-
-fn mark_iterative(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap) -> Vec<(usize, usize)> {
-    // Use a hash-set to store the mark queue to avoid double-marking
-    let mut to_mark: HashSet<(usize, usize)> = HashSet::with_capacity(8);
-    let mut marked: Vec<(usize, usize)> = Vec::with_capacity(8);
-    to_mark.insert((i, j));
-    while !to_mark.is_empty() {
-        // My hacky way to "pop" the first element off a hash set -
-        // this is perhaps inefficient
-        let cur = *to_mark.iter().next().unwrap();
-        to_mark.remove(&cur);
-        let (cur_i, cur_j) = cur;
-        let mine_count = mark_cell(count_grid, cur_i, cur_j, mine_map);
-        marked.push(cur);
-        // TODO: there's perhaps potential for optimization here (running over the neighbors
-        //  twice)?
-        if mine_count == 0 {
-            // None of the neighbors are mines, so enqueue all the unmarked neighbors for marking.
-            for cur_neigh in get_neighbors(mine_map, cur_i, cur_j) {
-                let (ni, nj) = cur_neigh;
-                if !get(count_grid, ni, nj).is_marked() {
-                    to_mark.insert(cur_neigh); // The hash-set-ness will deduplicate for us.
-                }
-            }
-        }
-    }
-    marked
-}
+//
+// fn mark_iterative(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap) -> Vec<(usize, usize)> {
+//     // Use a hash-set to store the mark queue to avoid double-marking
+//     let mut to_mark: HashSet<(usize, usize)> = HashSet::with_capacity(8);
+//     let mut marked: Vec<(usize, usize)> = Vec::with_capacity(8);
+//     to_mark.insert((i, j));
+//     while !to_mark.is_empty() {
+//         // My hacky way to "pop" the first element off a hash set -
+//         // this is perhaps inefficient
+//         let cur = *to_mark.iter().next().unwrap();
+//         to_mark.remove(&cur);
+//         let (cur_i, cur_j) = cur;
+//         let mine_count = mark_cell(count_grid, cur_i, cur_j, mine_map);
+//         marked.push(cur);
+//         // TODO: there's perhaps potential for optimization here (running over the neighbors
+//         //  twice)?
+//         if mine_count == 0 {
+//             // None of the neighbors are mines, so enqueue all the unmarked neighbors for marking.
+//             for cur_neigh in get_neighbors(mine_map, cur_i, cur_j) {
+//                 let (ni, nj) = cur_neigh;
+//                 if !get(count_grid, ni, nj).is_marked() {
+//                     to_mark.insert(cur_neigh); // The hash-set-ness will deduplicate for us.
+//                 }
+//             }
+//         }
+//     }
+//     marked
+// }
 
 fn mark_recursive(count_grid: &mut CountGrid, i: usize, j: usize, mine_map: &MineMap) -> Vec<(usize, usize)> {
     let mut marked: Vec<(usize, usize)> = Vec::with_capacity(8);

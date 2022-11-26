@@ -7,8 +7,8 @@ use std::num::ParseIntError;
 
 fn main() {
     // solve_grid::test_update_likelihoods3();
-    // solve_grid::test_update_likelihoods1();
-    minesweeper_repl();
+    solve_grid::test_update_likelihoods1();
+    // minesweeper_repl();
 }
 
 fn minesweeper_repl() {
@@ -27,7 +27,7 @@ fn minesweeper_repl() {
     println!("Let's play minesweeper");
     print(&solve_state);
 
-    while solve_state.mines_found < solve_state.nmines {
+    loop {
         let mut mark_str = String::new();
         println!("Enter a move as: row,col");
         io::stdin()

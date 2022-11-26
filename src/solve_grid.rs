@@ -19,7 +19,7 @@ impl SolveCell {
         self.mine_likelihood != 0.0 && self.mine_likelihood != 1.0
     }
     pub fn is_mine(&self) -> bool {
-        self.unknown_neighbor_mine_likelihood == 1.0
+        self.mine_likelihood == 1.0
     }
 }
 
@@ -36,12 +36,11 @@ pub fn flatten_cells(solve_grid: &SolveGrid) -> Vec<Vec<f64>> {
 }
 
 // Container for data structures the solver uses.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolveState {
     pub solve_grid: SolveGrid,
     pub count_grid: CountGrid,
     pub nmines: usize,
-    pub mines_found: usize,
     pub boundary: HashSet<(usize, usize)>, // cells with a non-zero mine count
     pub frontier: HashSet<(usize, usize)>, // unknown cells bordering boundary cells.
 }
@@ -63,7 +62,6 @@ impl SolveState {
             solve_grid: init_solve_grid(nrows, ncols, nmines),
             count_grid: init_count_grid(nrows, ncols),
             nmines,
-            mines_found: 0,
             boundary: HashSet::with_capacity(16),
             frontier: HashSet::with_capacity(16),
         }
@@ -118,7 +116,12 @@ pub fn init_solve_grid(nrows: usize, ncols: usize, nmines: usize) -> SolveGrid {
 ///
 pub fn update_after_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize)>) {
     apply_mark(solve_state, marked_cells);
-    update_likelihoods_after_mark(solve_state);
+    match update_likelihoods_after_mark(solve_state) {
+        Ok(_) => {}
+        Err(e) => {
+            panic!("Found invalid solve cell while updating likelihoods: {:?}", e)
+        }
+    };
 }
 
 ///
@@ -167,9 +170,8 @@ pub fn apply_mark(solve_state: &mut SolveState, marked_cells: &Vec<(usize, usize
 ///
 /// Updates the solve_state probabilities after marking a cell.
 ///
-fn update_likelihoods_after_mark(solve_state: &mut SolveState) {
+pub fn update_likelihoods_after_mark(solve_state: &mut SolveState) -> Result<(), InvalidSolveCell> {
     // Repeat until we reach stability
-    // TODO: maybe we always only run once?
     loop {
         // Phase 1: update the mine_neighbor_likelihood for all boundary cells.
         // TODO: instead of running on all cells, run only on cells that need updates.
@@ -179,12 +181,22 @@ fn update_likelihoods_after_mark(solve_state: &mut SolveState) {
             break;
         }
         // Phase 2: update the frontier cell
-        let updated = update_frontier_likelihoods(solve_state);
+        let updated = update_frontier_likelihoods(solve_state)?;
         if !updated {
             break;
         }
         update_frontier(solve_state);
+        update_interior(solve_state);
     }
+    Ok(())
+}
+
+/// Error class for a state contradiction
+/// Indicates that the provided cell has a mine_likelihood of both 0.0 and 1.0
+#[derive(Debug, Clone)]
+pub struct InvalidSolveCell {
+    i: usize,
+    j: usize,
 }
 
 /// Update the mine neighbor likelihoods of all boundary cells.
@@ -205,7 +217,7 @@ fn update_unknown_neighbor_mine_likelihoods(solve_state: &mut SolveState) -> boo
 
 /// Update the mine likelihoods of all frontier cells.
 /// Returns whether we updated the likelihood of any cell.
-fn update_frontier_likelihoods(solve_state: &mut SolveState) -> bool {
+fn update_frontier_likelihoods(solve_state: &mut SolveState) -> Result<bool, InvalidSolveCell> {
     let mut updated = false;
     for (i_, j_) in &solve_state.frontier {
         let (i, j) = (*i_, *j_);
@@ -219,23 +231,38 @@ fn update_frontier_likelihoods(solve_state: &mut SolveState) -> bool {
         // 0 if any of the boundary neighbors have a neighbor likelihood of 0, else
         // 1 if any of the boundary neighbors have a neighbor likelihood of 1, else
         // the maximum of all boundary neighbor likelihoods.
-        let new_mine_likelihood = get_boundary_neighbors(solve_state, i, j).iter()
-            .map(|(ni, nj)|{ get(&solve_state.solve_grid, *ni, *nj).unknown_neighbor_mine_likelihood })
-            .reduce(|l1, l2| {
-                // Propagate zeros,
-                if l1 == 0.0 || l2 == 0.0 {
-                    0.0
-                } else {
-                    if l1 >= l2 { l1 } else { l2 }
+        // IF one boundary neighbor has a neighbor likelihood of 0 and another has a neighbor
+        // likelihood of 1, the state is invalid and we return an error immediately.
+
+        let mut cur_mine_likelihood: f64 = -1.0; // Current computed value for the mine likelihood of this cell (i, j)
+        for (ni, nj) in get_boundary_neighbors(solve_state, i, j) {
+            let neighbor_likelihood = get(&solve_state.solve_grid, ni, nj).unknown_neighbor_mine_likelihood;
+            // Propagate zeros
+            if cur_mine_likelihood == 0.0 {
+                // If we find a contradiction, bail
+                if neighbor_likelihood == 1.0 {
+                    return Err(InvalidSolveCell { i, j });
                 }
-            }).unwrap(); // Panics if this cell has no boundary neighbors.
+                // Else carry on.
+            } else {
+                // Otherwise use the largest neighbor likelihood.
+                if neighbor_likelihood > cur_mine_likelihood {
+                    cur_mine_likelihood = neighbor_likelihood;
+                }
+            }
+        }
+        // Sanity check: if no boundary neighbors for this cell, panic
+        if cur_mine_likelihood < 0.0 {
+            panic!("No boundary neighbors for frontier cell {i},{j}");
+        }
+
         let mut frontier_cell = get_mut(&mut solve_state.solve_grid, i, j);
-        if frontier_cell.mine_likelihood != new_mine_likelihood {
+        if frontier_cell.mine_likelihood != cur_mine_likelihood {
             updated = true;
-            frontier_cell.mine_likelihood = new_mine_likelihood;
+            frontier_cell.mine_likelihood = cur_mine_likelihood;
         }
     }
-    updated
+    Ok(updated)
 }
 
 ///
@@ -253,6 +280,50 @@ fn update_frontier(solve_state: &mut SolveState) {
     for coords in new_known_cells {
         solve_state.frontier.remove(&coords);
     }
+}
+
+///
+/// Updates the likelihood for interior cells, i.e. unknown cells that are not on the frontier.
+///
+fn update_interior(solve_state: &mut SolveState) {
+    let mut known_mine_count: usize = 0;
+    let mut unknown_cell_count: usize = 0;
+    // let known_mine_count: usize = solve_state.solve_grid.iter()
+    //     .map(|row| row.iter()
+    //         .map(|cell| if cell.mine_likelihood == 1.0 { 1usize } else { 0usize })
+    //         .sum::<usize>()
+    //     ).sum();
+    let nrows = solve_state.get_num_rows();
+    let ncols = solve_state.get_num_cols();
+    for i in 0..nrows {
+        for j in 0..ncols {
+            let cell = get(&solve_state.solve_grid, i, j);
+            if cell.is_unknown() {
+                unknown_cell_count += 1
+            } else if cell.is_mine() {
+                known_mine_count += 1
+            }
+        }
+    }
+
+    let interior_likelihood = (solve_state.nmines - known_mine_count) as f64 / unknown_cell_count as f64;
+    for i in 0..nrows {
+        for j in 0..ncols {
+            // An interior cell is unknown and not on the frontier
+            if get(&solve_state.solve_grid, i, j).is_unknown()
+                && !solve_state.frontier.contains(&(i, j)) {
+                // Sanity check
+                for_each_neighbor(&solve_state.solve_grid, i, j, &mut |cell, ni, nj| {
+                    if get(&solve_state.count_grid, ni, nj).is_marked() {
+                        panic!("Unknown cell with marked neighbor is not on the frontier: {ni},{nj}");
+                    }
+                });
+                // Update the interior likelihood based on the mine count.
+                get_mut(&mut solve_state.solve_grid, i, j).mine_likelihood = interior_likelihood;
+            }
+        }
+    }
+
 }
 
 ///
@@ -358,15 +429,24 @@ pub fn test_update_likelihoods3() {
         ],
        count_grid::flatten_cells(&solve_state.count_grid)
     );
+    // interior likelihood
+    let il = 5 as f64 / 24 as f64;
     assert_eq!(vec![
-        vec![0.375, 0.375, 0.375, 0.2, 0.2],
-        vec![0.375, 0.0,   0.375, 0.2, 0.2],
-        vec![0.375, 0.375, 0.375, 0.2, 0.2],
-        vec![0.2, 0.2, 0.2, 0.2, 0.2],
-        vec![0.2, 0.2, 0.2, 0.2, 0.2],
+        // Without interior adjustments
+        // vec![0.375, 0.375, 0.375, 0.2, 0.2],
+        // vec![0.375, 0.0,   0.375, 0.2, 0.2],
+        // vec![0.375, 0.375, 0.375, 0.2, 0.2],
+        // vec![0.2, 0.2, 0.2, 0.2, 0.2],
+        // vec![0.2, 0.2, 0.2, 0.2, 0.2],
+        vec![0.375, 0.375, 0.375,  il,  il],
+        vec![0.375, 0.0,   0.375,  il,  il],
+        vec![0.375, 0.375, 0.375,  il,  il],
+        vec![ il,  il,  il,  il,  il],
+        vec![ il,  il,  il,  il,  il],
         ],
        flatten_cells(&solve_state.solve_grid)
     );
+
     make_move_and_print((0, 3), &mut solve_state, &mine_map);
     make_move_and_print((3, 0), &mut solve_state, &mine_map);
     assert_eq!(vec![
@@ -429,7 +509,7 @@ pub fn test_update_likelihoods1() {
     println!("solve_grid: {}", to_string(&solve_state.solve_grid));
     println!("new boundary cells: {:?}", new_boundary_cells);
 
-    update_likelihoods_after_mark(&mut solve_state);
+    update_likelihoods_after_mark(&mut solve_state).expect("Invalid cell state!");
     println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
     println!("solve_grid: {}", to_string(&solve_state.solve_grid));
 
@@ -520,7 +600,7 @@ pub mod tests {
         println!("solve_grid: {}", solve_grid::to_string(&solve_state.solve_grid));
         println!("new boundary cells: {:?}", new_boundary_cells);
 
-        update_likelihoods_after_mark(&mut solve_state);
+        update_likelihoods_after_mark(&mut solve_state).expect("Invalid cell state!");
         println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
         println!("solve_grid: {}", solve_grid::to_string(&solve_state.solve_grid));
 
@@ -530,4 +610,5 @@ pub mod tests {
     pub fn test_update_likelihoods3() {
         solve_grid::test_update_likelihoods3();
     }
+
 }
