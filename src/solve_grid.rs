@@ -25,7 +25,7 @@ impl SolveCell {
 
 
 // Internal board used by the solver
-type SolveGrid = Vec<Vec<SolveCell>>;
+pub type SolveGrid = Vec<Vec<SolveCell>>;
 
 pub fn flatten_cells(solve_grid: &SolveGrid) -> Vec<Vec<f64>> {
     solve_grid.iter().map(
@@ -99,7 +99,12 @@ impl SolveState {
 
         // The likelihood that this cell's neighbor is a mine, based off of this cell's count:
         // Number of remaining mines bordering this cell / number of unknown neighbors of this cell
-        let n_remaining_mine_neighbors = count_cell.neighbor_mine_count - n_known_mine_neighbors as i32;
+        let n_remaining_mine_neighbors = count_cell.neighbor_mine_count as usize - n_known_mine_neighbors;
+        // If there are more remaining mine neighbors than unknown neighbors, there's no space
+        // left for the needed mines - the state is invalid.
+        if n_remaining_mine_neighbors > n_unknown_neighbors {
+            return Err(InvalidSolveCell { i, j })
+        }
         Ok(n_remaining_mine_neighbors as f64 / n_unknown_neighbors as f64)
     }
 
@@ -196,7 +201,7 @@ pub fn update_likelihoods_after_state_change(solve_state: &mut SolveState) -> Re
             break;
         }
         update_frontier(solve_state);
-        update_interior(solve_state);
+        update_interior(solve_state)?;
     }
     Ok(())
 }
@@ -213,6 +218,8 @@ pub struct InvalidSolveCell {
 /// Returns whether we updated the likelihood of any cell.
 fn update_unknown_neighbor_mine_likelihoods(solve_state: &mut SolveState) -> Result<bool, InvalidSolveCell> {
     let mut updated = false;
+    // TODO: only iterate over boundary cells who had a state change/whose neighbors had a state
+    // change?
     for (i_, j_) in &solve_state.boundary {
         let (i, j) = (*i_, *j_);
         let new_likelihood = solve_state.get_mine_neighbor_likelihood(i, j)?;
@@ -305,7 +312,7 @@ fn update_frontier(solve_state: &mut SolveState) {
 ///
 /// Updates the likelihood for interior cells, i.e. unknown cells that are not on the frontier.
 ///
-fn update_interior(solve_state: &mut SolveState) {
+fn update_interior(solve_state: &mut SolveState) -> Result<(), InvalidSolveCell> {
     let mut known_mine_count: usize = 0;
     let mut unknown_cell_count: usize = 0;
 
@@ -320,6 +327,10 @@ fn update_interior(solve_state: &mut SolveState) {
                 known_mine_count += 1
             }
         }
+    }
+    // If there are more known mines than total mines, something is wrong - return an error
+    if known_mine_count > solve_state.nmines {
+        return Err(InvalidSolveCell { i: 0, j: 0}) // TODO: not really the right coordinates, but whatever.
     }
 
     let interior_likelihood = (solve_state.nmines - known_mine_count) as f64 / unknown_cell_count as f64;
@@ -339,7 +350,7 @@ fn update_interior(solve_state: &mut SolveState) {
             }
         }
     }
-
+    Ok(())
 }
 
 ///
@@ -417,171 +428,6 @@ fn make_move_and_print(m: (usize, usize), solve_state: &mut SolveState, mine_map
     println!("{:?}", solve_state);
 }
 
-pub fn test_update_likelihoods3() {
-    let mine_map: MineMap = vec![
-        vec![true,  false, false, false, false],
-        vec![false, false, false, false, false],
-        vec![true,  true,  false, false, false],
-        vec![false, false, false, false, false],
-        vec![false, false, true,  true,  false],
-    ];
-    let mut solve_state = SolveState::init(
-        get_num_rows(&mine_map),
-        get_num_cols(&mine_map),
-        5
-    );
-
-    println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
-    println!("solve_grid: {}", to_string(&solve_state.solve_grid));
-    println!("{:?}", &solve_state);
-
-    make_move_and_print((1, 1), &mut solve_state, &mine_map);
-    assert_eq!(vec![
-            vec![-1,  -1, -1, -1, -1],
-            vec![-1,   3, -1, -1, -1],
-            vec![-1,  -1, -1, -1, -1],
-            vec![-1,  -1, -1, -1, -1],
-            vec![-1,  -1, -1, -1, -1]
-        ],
-       count_grid::flatten_cells(&solve_state.count_grid)
-    );
-    // interior likelihood
-    let il = 5 as f64 / 24 as f64;
-    assert_eq!(vec![
-        // Without interior adjustments
-        // vec![0.375, 0.375, 0.375, 0.2, 0.2],
-        // vec![0.375, 0.0,   0.375, 0.2, 0.2],
-        // vec![0.375, 0.375, 0.375, 0.2, 0.2],
-        // vec![0.2, 0.2, 0.2, 0.2, 0.2],
-        // vec![0.2, 0.2, 0.2, 0.2, 0.2],
-        vec![0.375, 0.375, 0.375,  il,  il],
-        vec![0.375, 0.0,   0.375,  il,  il],
-        vec![0.375, 0.375, 0.375,  il,  il],
-        vec![ il,  il,  il,  il,  il],
-        vec![ il,  il,  il,  il,  il],
-        ],
-       flatten_cells(&solve_state.solve_grid)
-    );
-
-    make_move_and_print((0, 3), &mut solve_state, &mine_map);
-    make_move_and_print((3, 0), &mut solve_state, &mine_map);
-    assert_eq!(vec![
-        vec![-1,   1,  0,  0,  0],
-        vec![-1,   3,  1,  0,  0],
-        vec![-1,  -1,  1,  0,  0],
-        vec![ 2,  -1,  3,  2,  1],
-        vec![-1,  -1, -1, -1, -1]],
-       count_grid::flatten_cells(&solve_state.count_grid)
-    );
-    assert_eq!(vec![
-        vec![2.0/3.0, 0.0, 0.0, 0.0, 0.0],
-        vec![2.0/3.0, 0.0,   0.0, 0.0, 0.0],
-        vec![2.0/3.0, 1.0, 0.0, 0.0, 0.0],
-        vec![0.0, 0.0, 0.0, 0.0, 0.0],
-        vec![1.0/3.0, 2.0/3.0, 2.0/3.0, 2.0/3.0, 2.0/3.0],],
-       flatten_cells(&solve_state.solve_grid)
-    );
-    assert_eq!(Some((3, 1)), choose_next_mark(&solve_state));
-
-    make_move_and_print((4, 0), &mut solve_state, &mine_map);
-    assert_eq!(vec![
-        vec![-1,   1,  0,  0,  0],
-        vec![-1,   3,  1,  0,  0],
-        vec![-1,  -1,  1,  0,  0],
-        vec![ 2,   3,  3,  2,  1],
-        vec![ 0,   1, -1, -1, -1]],
-               count_grid::flatten_cells(&solve_state.count_grid)
-    );
-    assert_eq!(vec![
-        vec![0.5, 0.0, 0.0, 0.0, 0.0],
-        vec![0.5, 0.0, 0.0, 0.0, 0.0],
-        vec![1.0, 1.0, 0.0, 0.0, 0.0],
-        vec![0.0, 0.0, 0.0, 0.0, 0.0],
-        vec![0.0, 0.0, 1.0, 1.0, 0.0],],
-               flatten_cells(&solve_state.solve_grid)
-    );
-}
-
-pub fn test_update_likelihoods1() {
-    let mine_map: MineMap = vec![
-        vec![true, false, false, false, true],
-        vec![false, false, false, false, false],
-        vec![false, false, false, false, false],
-        vec![false, false, false, false, false],
-        vec![false, false, false, false, false],
-        vec![false, false, false, false, true],
-    ];
-    let mut solve_state = SolveState::init(
-        get_num_rows(&mine_map),
-        get_num_cols(&mine_map),
-        3
-    );
-    println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
-    println!("solve_grid: {}", to_string(&solve_state.solve_grid));
-
-    let marked_cells = count_grid::mark(&mut solve_state.count_grid, 0, 2, &mine_map);
-    let new_boundary_cells = apply_mark(&mut solve_state, &marked_cells);
-    println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
-    println!("solve_grid: {}", to_string(&solve_state.solve_grid));
-    println!("new boundary cells: {:?}", new_boundary_cells);
-
-    update_likelihoods_after_state_change(&mut solve_state).expect("Invalid cell state!");
-    println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
-    println!("solve_grid: {}", to_string(&solve_state.solve_grid));
-
-    assert_eq!(
-        vec![
-            vec![-1,  1,  0,  1, -1],
-            vec![ 1,  1,  0,  1,  1],
-            vec![ 0,  0,  0,  0,  0],
-            vec![ 0,  0,  0,  0,  0],
-            vec![ 0,  0,  0,  1,  1],
-            vec![ 0,  0,  0,  1, -1],
-        ],
-        count_grid::flatten_cells(&solve_state.count_grid)
-    );
-
-    assert_eq!(
-        vec![
-            vec![1.0, 0.0, 0.0, 0.0, 1.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 1.0],
-        ],
-        flatten_cells(&solve_state.solve_grid)
-    );
-    println!("{:?}", solve_state);
-    assert_eq!(None, choose_next_mark(&solve_state));
-
-
-    assert_eq!(
-        vec![
-            vec![-1,  1,  0,  1, -1],
-            vec![ 1,  1,  0,  1,  1],
-            vec![ 0,  0,  0,  0,  0],
-            vec![ 0,  0,  0,  0,  0],
-            vec![ 0,  0,  0,  1,  1],
-            vec![ 0,  0,  0,  1, -1],
-        ],
-        count_grid::flatten_cells(&solve_state.count_grid)
-    );
-
-    assert_eq!(
-        vec![
-            vec![1.0, 0.0, 0.0, 0.0, 1.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 1.0],
-        ],
-        flatten_cells(&solve_state.solve_grid)
-    );
-    println!("{:?}", solve_state);
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -590,7 +436,83 @@ pub mod tests {
 
     #[test]
     pub fn test_update_likelihoods1()  {
-        solve_grid::test_update_likelihoods1();
+        let mine_map: MineMap = vec![
+            vec![true, false, false, false, true],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, false, false, true],
+        ];
+        let mut solve_state = SolveState::init(
+            get_num_rows(&mine_map),
+            get_num_cols(&mine_map),
+            3
+        );
+        println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("solve_grid: {}", to_string(&solve_state.solve_grid));
+
+        let marked_cells = count_grid::mark(&mut solve_state.count_grid, 0, 2, &mine_map);
+        let new_boundary_cells = apply_mark(&mut solve_state, &marked_cells);
+        println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("solve_grid: {}", to_string(&solve_state.solve_grid));
+        println!("new boundary cells: {:?}", new_boundary_cells);
+
+        update_likelihoods_after_state_change(&mut solve_state).expect("Invalid cell state!");
+        println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("solve_grid: {}", to_string(&solve_state.solve_grid));
+
+        assert_eq!(
+            vec![
+                vec![-1,  1,  0,  1, -1],
+                vec![ 1,  1,  0,  1,  1],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  1,  1],
+                vec![ 0,  0,  0,  1, -1],
+            ],
+            count_grid::flatten_cells(&solve_state.count_grid)
+        );
+
+        assert_eq!(
+            vec![
+                vec![1.0, 0.0, 0.0, 0.0, 1.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            flatten_cells(&solve_state.solve_grid)
+        );
+        println!("{:?}", solve_state);
+        assert_eq!(None, choose_next_mark(&solve_state));
+
+
+        assert_eq!(
+            vec![
+                vec![-1,  1,  0,  1, -1],
+                vec![ 1,  1,  0,  1,  1],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  0,  0],
+                vec![ 0,  0,  0,  1,  1],
+                vec![ 0,  0,  0,  1, -1],
+            ],
+            count_grid::flatten_cells(&solve_state.count_grid)
+        );
+
+        assert_eq!(
+            vec![
+                vec![1.0, 0.0, 0.0, 0.0, 1.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            flatten_cells(&solve_state.solve_grid)
+        );
+        println!("{:?}", solve_state);
     }
 
 
@@ -624,7 +546,128 @@ pub mod tests {
 
     #[test]
     pub fn test_update_likelihoods3() {
-        solve_grid::test_update_likelihoods3();
+        let mine_map: MineMap = vec![
+            vec![true,  false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![true,  true,  false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, true,  true,  false],
+        ];
+        let mut solve_state = SolveState::init(
+            get_num_rows(&mine_map),
+            get_num_cols(&mine_map),
+            5
+        );
+
+        println!("count_grid: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("solve_grid: {}", to_string(&solve_state.solve_grid));
+        println!("{:?}", &solve_state);
+
+        make_move_and_print((1, 1), &mut solve_state, &mine_map);
+        assert_eq!(vec![
+            vec![-1,  -1, -1, -1, -1],
+            vec![-1,   3, -1, -1, -1],
+            vec![-1,  -1, -1, -1, -1],
+            vec![-1,  -1, -1, -1, -1],
+            vec![-1,  -1, -1, -1, -1]
+        ],
+                   count_grid::flatten_cells(&solve_state.count_grid)
+        );
+        // interior likelihood
+        let il = 5 as f64 / 24 as f64;
+        assert_eq!(vec![
+            // Without interior adjustments
+            // vec![0.375, 0.375, 0.375, 0.2, 0.2],
+            // vec![0.375, 0.0,   0.375, 0.2, 0.2],
+            // vec![0.375, 0.375, 0.375, 0.2, 0.2],
+            // vec![0.2, 0.2, 0.2, 0.2, 0.2],
+            // vec![0.2, 0.2, 0.2, 0.2, 0.2],
+            vec![0.375, 0.375, 0.375,  il,  il],
+            vec![0.375, 0.0,   0.375,  il,  il],
+            vec![0.375, 0.375, 0.375,  il,  il],
+            vec![ il,  il,  il,  il,  il],
+            vec![ il,  il,  il,  il,  il],
+        ],
+                   flatten_cells(&solve_state.solve_grid)
+        );
+
+        make_move_and_print((0, 3), &mut solve_state, &mine_map);
+        make_move_and_print((3, 0), &mut solve_state, &mine_map);
+        assert_eq!(vec![
+            vec![-1,   1,  0,  0,  0],
+            vec![-1,   3,  1,  0,  0],
+            vec![-1,  -1,  1,  0,  0],
+            vec![ 2,  -1,  3,  2,  1],
+            vec![-1,  -1, -1, -1, -1]],
+                   count_grid::flatten_cells(&solve_state.count_grid)
+        );
+        assert_eq!(vec![
+            vec![2.0/3.0, 0.0, 0.0, 0.0, 0.0],
+            vec![2.0/3.0, 0.0,   0.0, 0.0, 0.0],
+            vec![2.0/3.0, 1.0, 0.0, 0.0, 0.0],
+            vec![0.0, 0.0, 0.0, 0.0, 0.0],
+            vec![1.0/3.0, 2.0/3.0, 2.0/3.0, 2.0/3.0, 2.0/3.0],],
+                   flatten_cells(&solve_state.solve_grid)
+        );
+        assert_eq!(Some((3, 1)), choose_next_mark(&solve_state));
+
+        make_move_and_print((4, 0), &mut solve_state, &mine_map);
+        assert_eq!(vec![
+            vec![-1,   1,  0,  0,  0],
+            vec![-1,   3,  1,  0,  0],
+            vec![-1,  -1,  1,  0,  0],
+            vec![ 2,   3,  3,  2,  1],
+            vec![ 0,   1, -1, -1, -1]],
+                   count_grid::flatten_cells(&solve_state.count_grid)
+        );
+        assert_eq!(vec![
+            vec![0.5, 0.0, 0.0, 0.0, 0.0],
+            vec![0.5, 0.0, 0.0, 0.0, 0.0],
+            vec![1.0, 1.0, 0.0, 0.0, 0.0],
+            vec![0.0, 0.0, 0.0, 0.0, 0.0],
+            vec![0.0, 0.0, 1.0, 1.0, 0.0],],
+                   flatten_cells(&solve_state.solve_grid)
+        );
+    }
+
+    #[test]
+    pub fn test_clone() {
+        let mine_map: MineMap = vec![
+            vec![true,  false, false, false, false],
+            vec![false, false, false, false, false],
+            vec![true,  true,  false, false, false],
+            vec![false, false, false, false, false],
+            vec![false, false, true,  true,  false],
+        ];
+        let mut solve_state = SolveState::init(
+            get_num_rows(&mine_map),
+            get_num_cols(&mine_map),
+            5
+        );
+        let marked_cells = count_grid::mark(&mut solve_state.count_grid, 0, 4, &mine_map);
+        solve_grid::update_after_mark(&mut solve_state, &marked_cells);
+
+        let mut cloned_state = solve_state.clone();
+        // assert!(cloned_state.solve_grid.eq(&solve_state.solve_grid));
+        // assert!(cloned_state.count_grid.eq(&solve_state.count_grid));
+        assert_eq!(cloned_state.boundary, solve_state.boundary);
+        assert_eq!(cloned_state.frontier, solve_state.frontier);
+        println!("Original: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("Original frontier:\n{:?}", solve_state.frontier);
+        println!("Clone: {}", count_grid::to_string(&cloned_state.count_grid));
+        println!("Clone frontier:\n{:?}", cloned_state.frontier);
+
+        let marked_cells = count_grid::mark(&mut cloned_state.count_grid, 4, 0, &mine_map);
+        solve_grid::update_after_mark(&mut cloned_state, &marked_cells);
+
+        // assert!(!cloned_state.solve_grid.eq(&solve_state.solve_grid));
+        // assert!(!cloned_state.count_grid.eq(&solve_state.count_grid));
+        assert_ne!(cloned_state.boundary, solve_state.boundary);
+        assert_ne!(cloned_state.frontier, solve_state.frontier);
+        println!("Original: {}", count_grid::to_string(&solve_state.count_grid));
+        println!("Original frontier:\n{:?}", solve_state.frontier);
+        println!("Clone: {}", count_grid::to_string(&cloned_state.count_grid));
+        println!("Clone frontier:\n{:?}", cloned_state.frontier);
     }
 
 }

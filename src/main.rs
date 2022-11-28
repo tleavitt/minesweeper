@@ -7,10 +7,7 @@ use std::io;
 use std::num::ParseIntError;
 
 fn main() {
-    assume::test_sim1();
-    // solve_grid::test_update_likelihoods3();
-    // solve_grid::test_update_likelihoods1();
-    // minesweeper_repl();
+    minesweeper_repl();
 }
 
 fn minesweeper_repl() {

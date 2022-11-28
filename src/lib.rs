@@ -3,6 +3,7 @@ pub mod count_grid;
 pub mod grid;
 pub mod solve_grid;
 pub mod assume;
+pub mod patterns;
 
 ///////////////////
 // x x x x x x x //
