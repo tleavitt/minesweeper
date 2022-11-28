@@ -3,8 +3,9 @@ use minesweeper_solver::mine_map::{generate_new_mine_map, to_string};
 use minesweeper_solver::solve_grid::SolveState;
 use minesweeper_solver::assume;
 
-use std::io;
+use std::{io, time};
 use std::num::ParseIntError;
+use std::thread::sleep;
 use minesweeper_solver::assume::{search_for_contradictions, update_from_contradiction};
 
 fn main() {
@@ -14,6 +15,7 @@ fn main() {
 fn minesweeper_repl() {
     let nrows = 26;
     let ncols = 19;
+    // let nmines = 99;
     let nmines = 99;
     let mine_map = generate_new_mine_map(nrows, ncols, nmines);
     // let mine_map = vec![
@@ -27,15 +29,16 @@ fn minesweeper_repl() {
     println!("Let's play minesweeper");
     print(&solve_state);
 
-    let mut best_move: (usize, usize) = (0, 0);
+    let mut best_move: (usize, usize) = (6, 6);
     let mut best_likelihood: f64 = -1.0;
 
     loop {
         let mut mark_str = String::new();
         println!("Enter a move as: row,col (or enter to take the computer's recommendation)");
-        io::stdin()
-            .read_line(&mut mark_str)
-            .expect("failed to read from stdin");
+        // io::stdin()
+        //     .read_line(&mut mark_str)
+        //     .expect("failed to read from stdin");
+        sleep(time::Duration::from_millis(200));
 
         let (mi, mj): (usize, usize) = {
             if mark_str.trim().is_empty() {
