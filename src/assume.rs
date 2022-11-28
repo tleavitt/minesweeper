@@ -98,6 +98,7 @@ pub fn search_for_contradictions(solve_state: &SolveState) -> Option<((usize, us
 pub fn update_from_contradiction(solve_state: &mut SolveState, res: ((usize, usize), f64)) {
     let ((i, j), mine_likelihood) = res;
     apply_manual_update(solve_state, i, j, mine_likelihood);
+    update_likelihoods_after_state_change(solve_state).expect("Invalid solve state");
 }
 
 #[cfg(test)]
