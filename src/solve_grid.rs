@@ -96,10 +96,14 @@ impl SolveState {
             // Otherwise all is well, neighbor mine likelihood is zero.
             return Ok(0.0)
         }
+        let neighbor_mine_count = count_cell.neighbor_mine_count  as usize;
+        if n_known_mine_neighbors > neighbor_mine_count {
+            return Err(InvalidSolveCell { i, j })
+        }
+        let n_remaining_mine_neighbors = count_cell.neighbor_mine_count as usize - n_known_mine_neighbors;
 
         // The likelihood that this cell's neighbor is a mine, based off of this cell's count:
         // Number of remaining mines bordering this cell / number of unknown neighbors of this cell
-        let n_remaining_mine_neighbors = count_cell.neighbor_mine_count as usize - n_known_mine_neighbors;
         // If there are more remaining mine neighbors than unknown neighbors, there's no space
         // left for the needed mines - the state is invalid.
         if n_remaining_mine_neighbors > n_unknown_neighbors {
@@ -113,6 +117,35 @@ impl SolveState {
     }
     pub fn get_num_cols(&self) -> usize {
         get_num_cols(&self.count_grid)
+    }
+
+    pub fn pretty_print(&self) -> String {
+        let mut str = String::new();
+        // First print a header
+        str.push_str(&"   ");
+        for j in 0..self.get_num_cols() {
+            str.push_str(&*format!("{:02} ", j));
+        }
+        str.push('\n');
+        for i in 0..self.get_num_rows() {
+            str.push_str(&*format!("{:02} ", i));
+            for j in 0..self.get_num_cols() {
+                let count_cell = get(&self.count_grid, i, j);
+                let sym: String = if count_cell.is_marked() {
+                    count_cell.neighbor_mine_count.to_string()
+                } else {
+                    let solve_cell = get(&self.solve_grid, i, j);
+                    String::from(if solve_cell.mine_likelihood == 1.0 {
+                        "!"
+                    } else {
+                        "-"
+                    })
+                };
+                str.push_str(&*format!(" {} ", sym));
+            }
+            str.push('\n');
+        }
+        str
     }
 }
 
@@ -354,26 +387,25 @@ fn update_interior(solve_state: &mut SolveState) -> Result<(), InvalidSolveCell>
 }
 
 ///
-/// Given a fully expanded solve state, choose the next cell to mark.
+/// Get an unmarked cell with the lowest likelihood of being a mine.
 ///
-pub fn choose_next_mark(solve_state: &SolveState) -> Option<(usize, usize)> {
+pub fn get_least_likely_unknown_cell(solve_state: &SolveState) -> Option<((usize, usize), f64)> {
     // Simply choose the unmarked cell with the lowest likelihood of bieng a mine.
     // TODO: implement lookahead by simulating mines.
     // Iterate over the whole board looking for the best unmarked cell.
     let mut best_likelihood: f64 = 1.0;
-    let mut best_cell:Option<(usize, usize)> = None;
+    let mut maybe_best_cell:Option<(usize, usize)> = None;
     for i in 0..solve_state.get_num_rows() {
         for j in 0..solve_state.get_num_cols() {
             if !get(&solve_state.count_grid, i, j).is_marked() {
                 if get(&solve_state.solve_grid, i, j).mine_likelihood < best_likelihood {
                     best_likelihood = get(&solve_state.solve_grid, i, j).mine_likelihood;
-                    best_cell = Some((i, j));
+                    maybe_best_cell = Some((i, j));
                 }
             }
         }
     }
-
-    best_cell
+    maybe_best_cell.map(|best_cell| (best_cell, best_likelihood))
 }
 
 fn get_unknown_neighbors(solve_grid: &SolveGrid, i: usize, j: usize) -> Vec<(usize, usize)>{
@@ -486,7 +518,7 @@ pub mod tests {
             flatten_cells(&solve_state.solve_grid)
         );
         println!("{:?}", solve_state);
-        assert_eq!(None, choose_next_mark(&solve_state));
+        assert_eq!(None, get_least_likely_unknown_cell(&solve_state));
 
 
         assert_eq!(
@@ -609,7 +641,7 @@ pub mod tests {
             vec![1.0/3.0, 2.0/3.0, 2.0/3.0, 2.0/3.0, 2.0/3.0],],
                    flatten_cells(&solve_state.solve_grid)
         );
-        assert_eq!(Some((3, 1)), choose_next_mark(&solve_state));
+        assert_eq!(Some(((3, 1), 0.0)), get_least_likely_unknown_cell(&solve_state));
 
         make_move_and_print((4, 0), &mut solve_state, &mine_map);
         assert_eq!(vec![

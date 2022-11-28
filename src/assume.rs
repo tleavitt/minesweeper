@@ -20,16 +20,21 @@ pub fn yields_contradiction(
     }
 
     // Manually update the mine_likelihood of the given cell
+    apply_manual_update(solve_state, i, j, mine_likelihood);
+    // Now try updating the likelihoods and see if we arrive at a contradiction.
+    match update_likelihoods_after_state_change(solve_state) {
+        Ok(_) => false,
+        Err(_) => true,
+    }
+}
+
+fn apply_manual_update(solve_state: &mut SolveState, i: usize, j: usize, mine_likelihood: f64) {
+    // Manually update the mine_likelihood of the given cell
     let mut solve_cell = get_mut(&mut solve_state.solve_grid, i, j);
     solve_cell.mine_likelihood = mine_likelihood;
     // If the cell is now known, remove it from the frontier (if it's on there, otherwise no-op.)
     if !solve_cell.is_unknown() {
         solve_state.frontier.remove(&(i, j));
-    }
-    // Now try updating the likelihoods and see if we arrive at a contradiction.
-    match update_likelihoods_after_state_change(solve_state) {
-        Ok(_) => false,
-        Err(_) => true,
     }
 }
 
@@ -88,6 +93,11 @@ pub fn search_for_contradictions(solve_state: &SolveState) -> Option<((usize, us
     }
     // Couldn't find any immediate contradictions, return none.
     None
+}
+
+pub fn update_from_contradiction(solve_state: &mut SolveState, res: ((usize, usize), f64)) {
+    let ((i, j), mine_likelihood) = res;
+    apply_manual_update(solve_state, i, j, mine_likelihood);
 }
 
 #[cfg(test)]

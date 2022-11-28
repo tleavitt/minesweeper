@@ -5,6 +5,7 @@ use minesweeper_solver::assume;
 
 use std::io;
 use std::num::ParseIntError;
+use minesweeper_solver::assume::{search_for_contradictions, update_from_contradiction};
 
 fn main() {
     minesweeper_repl();
@@ -26,23 +27,32 @@ fn minesweeper_repl() {
     println!("Let's play minesweeper");
     print(&solve_state);
 
+    let mut best_move: (usize, usize) = (0, 0);
+    let mut best_likelihood: f64 = -1.0;
+
     loop {
         let mut mark_str = String::new();
-        println!("Enter a move as: row,col");
+        println!("Enter a move as: row,col (or enter to take the computer's recommendation)");
         io::stdin()
             .read_line(&mut mark_str)
             .expect("failed to read from stdin");
 
-        let maybe_mark = parse_mark(&mark_str);
-        let (mi, mj): (usize, usize) = match maybe_mark {
-            None => {
-                println!("Could not parse input as coordinates row,col: {}", mark_str);
-                continue;
-            },
-            Some(m) => {
-                println!("Marking {:?}", m);
-                m
-            },
+        let (mi, mj): (usize, usize) = {
+            if mark_str.trim().is_empty() {
+                best_move
+            } else {
+                let maybe_mark = parse_mark(&mark_str);
+                match maybe_mark {
+                    None => {
+                        println!("Could not parse input as coordinates row,col: {}", mark_str);
+                        continue;
+                    },
+                    Some(m) => {
+                        println!("Marking {:?}", m);
+                        m
+                    },
+                }
+            }
         };
 
         // Check if we hit a mine. If so, you lose!
@@ -55,15 +65,21 @@ fn minesweeper_repl() {
         let marked_cells = count_grid::mark(&mut solve_state.count_grid, mi, mj, &mine_map);
         solve_grid::update_after_mark(&mut solve_state, &marked_cells);
         print(&solve_state);
-        let recommended_move = solve_grid::choose_next_mark(&solve_state);
-        match recommended_move {
-            None => {
+        let maybe_recommended_move = solve_grid::get_least_likely_unknown_cell(&solve_state);
+        if maybe_recommended_move.is_none() {
                 println!("No more moves available - you win!");
                 break
-            },
-            Some(m) => println!("Computer recommends: {:?}, mine probability: {:.2}", m,
-                                grid::get(&solve_state.solve_grid, m.0, m.1).mine_likelihood)
-        };
+        }
+        (best_move, best_likelihood) = maybe_recommended_move.unwrap();
+        if best_likelihood > 0.0 {
+            println!("Simulating mines to find a better alternative...");
+            let maybe_contradiction = search_for_contradictions(&solve_state);
+            if maybe_contradiction.is_some() {
+                update_from_contradiction(&mut solve_state, maybe_contradiction.unwrap());
+                (best_move, best_likelihood) = solve_grid::get_least_likely_unknown_cell(&solve_state).unwrap();
+            }
+        }
+        println!("The computer recommends: {:?}, mine likelihood: {}", best_move, best_likelihood);
     }
 }
 
@@ -81,7 +97,7 @@ fn parse_mark(mark_str: &str) -> Option<(usize, usize)> {
 }
 
 fn print(solve_state: &SolveState) {
-    println!("grid: {}", count_grid::to_string(&solve_state.count_grid));
+    println!("{}", solve_state.pretty_print());
     // println!("mine likelihoods: {}", solve_grid::to_string(&solve_state.solve_grid));
     println!("frontier: {:?}", solve_state.frontier);
 }
