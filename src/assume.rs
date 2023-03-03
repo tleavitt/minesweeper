@@ -1,6 +1,5 @@
 use crate::solve_grid::*;
 use crate::solve_grid;
-use crate::count_grid;
 use crate::mine_map::*;
 use crate::grid::*;
 
@@ -105,6 +104,7 @@ pub fn update_from_contradiction(solve_state: &mut SolveState, res: ((usize, usi
 mod tests {
     use super::*;
     use crate::assume;
+    use crate::count_grid;
 
     #[test]
     pub fn test_sim1() {

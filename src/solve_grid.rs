@@ -2,7 +2,7 @@ use std::cmp::max;
 use std::collections::HashSet;
 use crate::count_grid::*;
 use crate::mine_map::*;
-use crate::{count_grid, solve_grid};
+use crate::count_grid;
 use crate::grid::*;
 
 #[derive(Debug, Clone)]

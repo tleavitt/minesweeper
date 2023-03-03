@@ -1,4 +1,3 @@
-use std::cmp::{min, max};
 ///
 /// Common grid functions
 ///

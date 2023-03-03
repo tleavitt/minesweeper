@@ -35,10 +35,10 @@ fn minesweeper_repl() {
     loop {
         let mut mark_str = String::new();
         println!("Enter a move as: row,col (or enter to take the computer's recommendation)");
-        // io::stdin()
-        //     .read_line(&mut mark_str)
-        //     .expect("failed to read from stdin");
-        sleep(time::Duration::from_millis(200));
+        io::stdin()
+            .read_line(&mut mark_str)
+            .expect("failed to read from stdin");
+        // sleep(time::Duration::from_millis(200));
 
         let (mi, mj): (usize, usize) = {
             if mark_str.trim().is_empty() {
@@ -102,7 +102,7 @@ fn parse_mark(mark_str: &str) -> Option<(usize, usize)> {
 fn print(solve_state: &SolveState) {
     println!("{}", solve_state.pretty_print());
     // println!("mine likelihoods: {}", solve_grid::to_string(&solve_state.solve_grid));
-    println!("frontier: {:?}", solve_state.frontier);
+    // println!("frontier: {:?}", solve_state.frontier);
 }
 
 
